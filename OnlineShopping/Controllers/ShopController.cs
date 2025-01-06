@@ -28,6 +28,7 @@ public class ShopController : ControllerBase
     public async Task<ActionResult<IEnumerable<User>>> GetUsersAsync([FromQuery] int skip = 0, [FromQuery] int take = 10)
     {
         var users = await _context.Users
+            .Where(u => !u.DeletedAt.HasValue)
             .Select(u => new UserDTO() // Projection
             {
                 Id = u.Id,
@@ -77,6 +78,45 @@ public class ShopController : ControllerBase
         };
 
         return Created($"api/shop/users/{user.Id}", userDTO); // status 201
+    }
+
+    [HttpDelete("users/{id}")]
+    public async Task<ActionResult> DeleteUserAsync([FromRoute] int id)
+    {
+        var user = await _context.Users.FindAsync(id);
+        user.DeletedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok();
+    }
+
+    [HttpGet("users/search")]
+    public async Task<ActionResult<IEnumerable<UserDTO>>> SearchUsers([FromQuery] string? name = null, 
+                                                                      [FromQuery] string? email = null)
+    {
+        var users = _context.Users
+            .Select(u => new UserDTO() // Projection
+        {
+            Id = u.Id,
+            FirstName = u.FirstName,
+            LastName = u.LastName,
+            DateOfBirth = u.DateOfBirth,
+            Email = u.Email,
+            Phone = u.Phone
+        });
+
+        if (name != null)
+        {
+            users = users.Where(u => (u.LastName + " " + u.FirstName).Contains(name));
+        }
+
+        if (email != null)
+        {
+            users = users.Where(u => u.Email.Contains(email));
+        }
+
+        var usersList = await users.ToArrayAsync();
+        return Ok(usersList);
     }
     
     // Endpoints
